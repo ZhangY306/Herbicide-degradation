@@ -1,0 +1,44 @@
+ibrary(ggplot2) #绘图
+library(RColorBrewer) #调色板
+library(tidyverse) #mutate函数
+library(rfPermute) #新型随机森林
+library(openxlsx)
+#读取数据
+setwd("C:/Users/msi/Desktop/YX")
+df <- read.xlsx('rfds.xlsx')
+
+#检验每个变量的重要性并构建数据框
+set.seed(123)
+PE.rfP<- rfPermute(HI ~ ., data = df, 
+                         ntree = 1000,
+                         nrep = 299, 
+                         num.cores = 8)#数据过多可以加大这个数字，多线程运行
+
+PE.data <- data.frame(importance(PE.rfP, decreasing = F))
+#%IncMSE和IncNodePurity都可以表示变量的重要性，选择哪个取决于你
+
+#添加p值
+PE.data <- mutate(PE.data,
+                        label = ifelse(X.IncMSE.pval < 0.001, '***',
+                                       ifelse(X.IncMSE.pval < 0.01, '**',
+                                              ifelse(X.IncMSE.pval < 0.05, '*', ''))))
+#添加变量名
+PE.data$name <- rownames(PE.data)
+#变量名排序
+PE.data$name <- factor(PE.data$name,
+                             levels = PE.data$name)
+
+
+p <- ggplot(PE.data, aes(name, X.IncMSE)) +
+  geom_bar(aes(fill = label),
+           stat = 'identity') +
+  scale_fill_manual(values = brewer.pal(6,"Accent")) +
+  geom_text(aes(y = X.IncMSE + 0.5,
+                label = label)) +
+  theme_classic() +
+  labs(x = '',
+       y = 'Increase in MSE(%)') +
+  theme(legend.position = '') +
+  coord_flip() #坐标轴翻转
+
+p
